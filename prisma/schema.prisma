@@ -1,0 +1,121 @@
+// Elif Aydın & Yunus Emre Kapukaya — düğün fotoğraf paylaşım platformu
+// Veritabanı her zaman tek doğruluk kaynağıdır; Cloudinary klasör isimlerine güvenilmez.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EventStatus {
+  ACTIVE
+  EXPIRED
+  ARCHIVED
+}
+
+/// Yönetim paneline giriş yapabilen kullanıcılar (çift / organizatör).
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("users")
+}
+
+/// Bir düğün / etkinlik. Mimari çoklu etkinliği destekler.
+model Event {
+  id            String      @id @default(cuid())
+  slug          String      @unique
+  /// Yönetim panelinde kullanılan tam başlık (ör. "Elif Aydın & Yunus Emre Kapukaya")
+  title         String
+  /// Herkese açık sayfada gösterilen isim (ör. "Elif & Yunus Emre")
+  coupleName    String
+  brideName     String
+  groomName     String
+  eventDate     DateTime?
+  coverImage    String?
+  coverPublicId String?
+  /// Gün cinsinden saklama süresi. Varsayılan 7 gün.
+  retentionDays Int         @default(7)
+  /// Bu tarihten sonra yükleme kapanır ve fotoğraflar temizlik işiyle silinir.
+  expiresAt     DateTime?
+  /// Admin tarafından manuel olarak yüklemeyi kapatma anahtarı.
+  uploadEnabled Boolean     @default(true)
+  status        EventStatus @default(ACTIVE)
+  /// Şimdiye kadar yüklenen toplam fotoğraf sayısı (silinenler dahil, kümülatif).
+  uploadCount   Int         @default(0)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  photos  Photo[]
+  tickets UploadTicket[]
+
+  @@index([status])
+  @@index([expiresAt])
+  @@map("events")
+}
+
+/// Misafirlerin yüklediği geçici fotoğraflar.
+model Photo {
+  id                String   @id @default(cuid())
+  eventId           String
+  /// Cloudinary public_id — silme işlemleri için zorunlu.
+  publicId          String   @unique
+  secureUrl         String
+  thumbnailUrl      String
+  originalFilename  String?
+  format            String
+  width             Int
+  height            Int
+  /// Byte cinsinden dosya boyutu (depolama tahmini için).
+  fileSize          Int
+  /// Hesapsız misafiri tanımlayan anonim oturum kimliği.
+  uploaderSessionId String
+  createdAt         DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, createdAt(sort: Desc)])
+  @@index([eventId, uploaderSessionId])
+  @@map("photos")
+}
+
+/// Sunucunun imzaladığı tek kullanımlık yükleme izni.
+/// /api/photos yalnızca burada kayıtlı bir public_id kabul eder; böylece
+/// istemci rastgele bir Cloudinary kaydını veritabanına ekleyemez.
+model UploadTicket {
+  id         String    @id @default(cuid())
+  eventId    String
+  publicId   String    @unique
+  sessionId  String
+  ipHash     String?
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, sessionId])
+  @@index([expiresAt])
+  @@map("upload_tickets")
+}
+
+/// Temizlik işlerinin denetim kaydı.
+model CleanupLog {
+  id              String   @id @default(cuid())
+  runAt           DateTime @default(now())
+  eventsProcessed Int      @default(0)
+  photosDeleted   Int      @default(0)
+  errors          Int      @default(0)
+  /// Kısa, gizli bilgi içermeyen özet.
+  detail          String?
+
+  @@index([runAt(sort: Desc)])
+  @@map("cleanup_logs")
+}

@@ -1,0 +1,406 @@
+@import 'tailwindcss';
+
+/* ==========================================================================
+   Tasarım sistemi — Elif & Yunus Emre
+   Yön: editoryal / dergi düzeni, sıcak nötr paleti, sessiz altın vurgu.
+   Renkler asla bileşenlerin içine gömülmez; her şey bu belirteçlerden gelir.
+   ========================================================================== */
+
+@theme {
+  /* Yüzeyler */
+  --color-ivory: #fcfaf6;
+  --color-cream: #f8f5ef;
+  --color-sand: #f1ece3;
+  --color-linen: #e8e1d5;
+
+  /* Metin — hepsi ivory üzerinde en az 4.5:1 kontrast sağlar */
+  --color-ink: #24221f;
+  --color-ink-soft: #45403a;
+  --color-muted: #6b655d;
+  /* Üçüncül metin ve dekoratif işaretler — ivory üzerinde 4.5:1 sağlar. */
+  --color-faint: #767065;
+
+  /* Vurgu */
+  --color-gold: #b99a64;
+  --color-gold-deep: #7a6238;
+  --color-gold-wash: #f3ecdf;
+
+  /* Durum */
+  --color-success: #43684f;
+  --color-danger: #94452f;
+  --color-danger-wash: #f7ece8;
+
+  /* Çizgiler */
+  --color-line: #e6dfd3;
+  --color-line-strong: #d6cdbd;
+
+  /* Tipografi */
+  --font-serif: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Yumuşatma */
+  --radius-xs: 0.375rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+
+  --shadow-soft: 0 1px 2px rgb(36 34 31 / 0.04), 0 8px 24px -12px rgb(36 34 31 / 0.12);
+  --shadow-lift: 0 2px 4px rgb(36 34 31 / 0.05), 0 18px 40px -18px rgb(36 34 31 / 0.22);
+  --shadow-press: inset 0 1px 2px rgb(36 34 31 / 0.12);
+
+  --ease-gentle: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Hareket */
+  --animate-fade-up: fade-up 0.9s var(--ease-gentle) both;
+  --animate-fade-in: fade-in 0.7s var(--ease-gentle) both;
+  --animate-scale-in: scale-in 0.5s var(--ease-gentle) both;
+  --animate-shimmer: shimmer 1.8s ease-in-out infinite;
+  --animate-draw: draw 0.8s var(--ease-gentle) 0.2s both;
+  --animate-ring: ring 0.9s var(--ease-gentle) both;
+  --animate-rule: rule-grow 1.1s var(--ease-gentle) both;
+  --animate-hint: hint 2.4s ease-in-out infinite;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+@keyframes draw {
+  from {
+    stroke-dashoffset: 48;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes ring {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Hairline'ların ortadan dışa doğru açılması — davetiye gravürü hissi. */
+@keyframes rule-grow {
+  from {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes hint {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translateY(4px);
+  }
+}
+
+/* ========================================================================== */
+
+@layer base {
+  * {
+    border-color: var(--color-line);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-ivory);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv02', 'cv03', 'cv04';
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /*
+    Tailwind v4 artık düğmelere varsayılan olarak cursor:pointer vermiyor.
+    Tıklanabilir her öğede el imlecini geri getiriyoruz.
+  */
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  label[for],
+  summary {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [aria-disabled='true'] {
+    cursor: not-allowed;
+  }
+
+  /* Görünür, markaya uygun odak halkası — erişilebilirlik için asla kaldırılmaz. */
+  :focus-visible {
+    outline: 2px solid var(--color-gold);
+    outline-offset: 3px;
+    border-radius: var(--radius-xs);
+  }
+
+  ::selection {
+    background: var(--color-gold-wash);
+    color: var(--color-ink);
+  }
+
+  /* iOS'ta 16px altı font, input odaklandığında sayfayı zoomlar. */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+
+  /* Serif başlıklarda rakamların hizası düzgün olsun. */
+  h1,
+  h2,
+  h3 {
+    font-variant-numeric: lining-nums;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+}
+
+@layer utilities {
+  .font-serif {
+    font-family: var(--font-serif);
+  }
+
+  .font-sans {
+    font-family: var(--font-sans);
+  }
+
+  /*
+    Hero başlığı. Optik olarak büyük serif harflerde satır aralığı sıkışır ve
+    harf aralığı hafif negatife çekilir; bu, davetiye baskısındaki dengeyi verir.
+  */
+  .text-display {
+    font-family: var(--font-serif);
+    font-size: clamp(3.25rem, 15vw, 6.5rem);
+    line-height: 0.92;
+    font-weight: 300;
+    letter-spacing: -0.02em;
+  }
+
+  .text-display-sm {
+    font-family: var(--font-serif);
+    font-size: clamp(1.875rem, 7vw, 2.875rem);
+    line-height: 1.08;
+    font-weight: 300;
+    letter-spacing: -0.01em;
+  }
+
+  /* İnce, harf aralıklı üst başlık. */
+  .eyebrow {
+    font-size: 0.6875rem;
+    letter-spacing: 0.36em;
+    text-transform: uppercase;
+    font-weight: 500;
+    color: var(--color-muted);
+  }
+
+  /* İki ucu incelen dekoratif altın çizgi. */
+  .rule-gold {
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      transparent,
+      var(--color-gold) 35%,
+      var(--color-gold) 65%,
+      transparent
+    );
+  }
+
+  /* Kağıt dokusu — çok düşük yoğunlukta, ekranda ancak hissedilir. */
+  .paper-grain {
+    background-image: radial-gradient(circle at 1px 1px, rgb(36 34 31 / 0.032) 1px, transparent 0);
+    background-size: 4px 4px;
+  }
+
+  /*
+    Hero'nun merkezine sıcak bir ışık toplayan yumuşak vinyet.
+    İsimlerin arkasında derinlik yaratır, gradyan gürültüsü eklemez.
+  */
+  .vignette-warm {
+    background:
+      radial-gradient(ellipse 70% 55% at 50% 42%, rgb(255 252 246 / 0.95), transparent 70%),
+      radial-gradient(ellipse 90% 70% at 50% 50%, rgb(241 236 227 / 0.55), transparent 75%);
+  }
+
+  /* Kapak fotoğrafının alt kenarını sayfaya eriten geçiş. */
+  .cover-fade {
+    background: linear-gradient(
+      to bottom,
+      rgb(252 250 246 / 0.72) 0%,
+      rgb(252 250 246 / 0.82) 45%,
+      rgb(252 250 246 / 0.97) 88%,
+      var(--color-ivory) 100%
+    );
+  }
+
+  /* Editoryal alıntı: geniş ölçü, italik serif, sakin satır aralığı. */
+  .pull-quote {
+    font-family: var(--font-serif);
+    font-size: clamp(1.25rem, 4.5vw, 1.625rem);
+    line-height: 1.55;
+    font-style: italic;
+    font-weight: 300;
+    letter-spacing: 0.005em;
+    color: var(--color-ink-soft);
+  }
+
+  .stagger > * {
+    animation: var(--animate-fade-up);
+  }
+  .stagger > *:nth-child(1) { animation-delay: 0.05s; }
+  .stagger > *:nth-child(2) { animation-delay: 0.14s; }
+  .stagger > *:nth-child(3) { animation-delay: 0.23s; }
+  .stagger > *:nth-child(4) { animation-delay: 0.32s; }
+  .stagger > *:nth-child(5) { animation-delay: 0.41s; }
+  .stagger > *:nth-child(6) { animation-delay: 0.5s; }
+  .stagger > *:nth-child(7) { animation-delay: 0.59s; }
+  .stagger > *:nth-child(8) { animation-delay: 0.68s; }
+
+  /*
+    Kaydırmayla ortaya çıkma. JS yalnızca `data-visible` özniteliğini ekler,
+    hareketin tamamı CSS'te kalır — ek animasyon kütüphanesi yok.
+  */
+  .reveal {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0);
+    transition:
+      opacity 0.8s var(--ease-gentle),
+      transform 0.8s var(--ease-gentle);
+    will-change: opacity, transform;
+  }
+
+  .reveal[data-visible='true'] {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Hareket hassasiyeti — tüm süslemeler kapanır. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  /* İçerik gizli kalmasın: hareket kapalıyken doğrudan görünür olsun. */
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ==========================================================================
+   Yazdırma — QR kartı
+   ========================================================================== */
+@media print {
+  @page {
+    margin: 0;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  .print-hidden {
+    display: none !important;
+  }
+
+  .print-sheet {
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    break-inside: avoid;
+  }
+
+  .print-card {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Baskıda animasyonlu öğeler son hâlinde görünmeli. */
+  .reveal {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
