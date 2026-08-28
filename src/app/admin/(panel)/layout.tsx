@@ -9,5 +9,5 @@ export default async function PanelLayout({ children }: { children: React.ReactN
   const session = await getSession()
   if (!session) redirect('/admin/login')
 
-  return <AdminShell email={session.email}>{children}</AdminShell>
+  return <AdminShell username={session.username}>{children}</AdminShell>
 }

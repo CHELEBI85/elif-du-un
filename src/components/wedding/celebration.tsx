@@ -9,18 +9,25 @@ import { useEffect, useRef } from 'react'
  * Hazır konfeti paketleri 15-30 KB ekliyor ve genelde parlak parti renkleri
  * getiriyor; buradaki paleti ve hareketi düğün diline göre kendimiz kuruyoruz.
  *
+ * İki mod:
+ *  - 'fall'  → sayfa açık kaldığı sürece devam eden karşılama yağmuru.
+ *              Ekranın altına düşen parçacık yok edilmez, yeniden yukarı
+ *              alınır; böylece sabit sayıda nesneyle sonsuz akış sağlanır
+ *              (her karede yeni nesne üretmek çöp toplayıcıyı yorardı).
+ *  - 'burst' → fotoğraflar ulaştığında merkezden saçılan, kendiliğinden
+ *              biten kısa kutlama.
+ *
  * Mobil öncelikli kararlar:
  *  - Parçacık sayısı ekran genişliğine göre ölçekleniyor.
  *  - devicePixelRatio en fazla 2 ile sınırlı (retina telefonlarda 3x boşuna yük).
- *  - Animasyon bitince RAF durup canvas DOM'dan kaldırılıyor; arka planda
- *    hiçbir şey dönmeye devam etmiyor.
- *  - Sayfa arka plana alınırsa (sekme değişimi) döngü duruyor.
+ *  - Sekme arka plana alınınca döngü tamamen duruyor; pil boşuna harcanmıyor.
+ *  - `prefers-reduced-motion` açıksa hiç çalışmıyor.
  */
 
 type Mode = 'fall' | 'burst'
 
 interface CelebrationProps {
-  /** 'fall' → yukarıdan süzülen karşılama. 'burst' → merkezden saçılan kutlama. */
+  /** 'fall' → kesintisiz karşılama yağmuru. 'burst' → merkezden saçılan kutlama. */
   mode?: Mode
   /** Değeri değişince animasyon yeniden başlar (ör. her başarılı yüklemede). */
   runKey?: number | string
@@ -60,54 +67,69 @@ function pick<T>(list: readonly T[]): T {
   return list[Math.floor(Math.random() * list.length)] as T
 }
 
-function createParticle(width: number, height: number, mode: Mode): Particle {
+/**
+ * Süzülen bir parçacığı ekranın üstüne yeniden yerleştirir.
+ * Yükseklik geniş bir aralıkta rastgele seçiliyor: hepsi aynı anda dönerse
+ * dalga dalga bir "perde" oluşur, oysa dağınık dönüş doğal bir yağmur verir.
+ */
+function resetFalling(p: Particle, width: number, height: number, initial: boolean) {
   const kindRoll = Math.random()
-  const kind: Particle['kind'] = kindRoll < 0.55 ? 'petal' : kindRoll < 0.9 ? 'foil' : 'dot'
-  const color = kind === 'petal' ? pick(PETAL_COLORS) : pick(FOIL_COLORS)
+  p.kind = kindRoll < 0.55 ? 'petal' : kindRoll < 0.9 ? 'foil' : 'dot'
+  p.color = p.kind === 'petal' ? pick(PETAL_COLORS) : pick(FOIL_COLORS)
 
-  if (mode === 'burst') {
-    // Merkezin biraz üstünden yukarı-dışa doğru saçılır, sonra yerçekimi alır.
-    const angle = randomBetween(-Math.PI * 0.92, -Math.PI * 0.08)
-    const speed = randomBetween(3.2, 8.4)
-    return {
-      x: width / 2 + randomBetween(-40, 40),
-      y: height * 0.42 + randomBetween(-20, 20),
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-      rotation: randomBetween(0, Math.PI * 2),
-      spin: randomBetween(-0.14, 0.14),
-      size: kind === 'dot' ? randomBetween(2, 3.5) : randomBetween(6, 12),
-      color,
-      kind,
-      swayPhase: randomBetween(0, Math.PI * 2),
-      swaySpeed: randomBetween(0.02, 0.05),
-      swayRange: randomBetween(0.2, 0.6),
-      flutterPhase: randomBetween(0, Math.PI * 2),
-      flutterSpeed: randomBetween(0.05, 0.11),
-      life: 0,
-      fadeStart: randomBetween(70, 110),
-    }
+  p.x = randomBetween(0, width)
+  // İlk açılışta hızlı dolsun, sonraki turlarda daha seyrek düşsün.
+  p.y = initial ? randomBetween(-height * 0.55, -20) : randomBetween(-height * 1.15, -30)
+  p.vx = randomBetween(-0.25, 0.25)
+  p.vy = randomBetween(1.1, 2.4)
+  p.rotation = randomBetween(0, Math.PI * 2)
+  p.spin = randomBetween(-0.05, 0.05)
+  p.size = p.kind === 'dot' ? randomBetween(1.8, 3) : randomBetween(5, 11)
+  p.swayPhase = randomBetween(0, Math.PI * 2)
+  p.swaySpeed = randomBetween(0.012, 0.032)
+  p.swayRange = randomBetween(0.5, 1.4)
+  p.flutterPhase = randomBetween(0, Math.PI * 2)
+  p.flutterSpeed = randomBetween(0.03, 0.07)
+  p.life = 0
+  p.fadeStart = Number.POSITIVE_INFINITY
+}
+
+function createParticle(width: number, height: number, mode: Mode): Particle {
+  const base: Particle = {
+    x: 0, y: 0, vx: 0, vy: 0,
+    rotation: 0, spin: 0, size: 6,
+    color: '#ffffff', kind: 'petal',
+    swayPhase: 0, swaySpeed: 0, swayRange: 0,
+    flutterPhase: 0, flutterSpeed: 0,
+    life: 0, fadeStart: Number.POSITIVE_INFINITY,
   }
 
-  // 'fall': ekranın üstünden, kademeli olarak süzülür.
-  return {
-    x: randomBetween(0, width),
-    y: randomBetween(-height * 0.9, -20),
-    vx: randomBetween(-0.25, 0.25),
-    vy: randomBetween(0.9, 2.1),
-    rotation: randomBetween(0, Math.PI * 2),
-    spin: randomBetween(-0.05, 0.05),
-    size: kind === 'dot' ? randomBetween(1.8, 3) : randomBetween(5, 11),
-    color,
-    kind,
-    swayPhase: randomBetween(0, Math.PI * 2),
-    swaySpeed: randomBetween(0.012, 0.032),
-    swayRange: randomBetween(0.5, 1.4),
-    flutterPhase: randomBetween(0, Math.PI * 2),
-    flutterSpeed: randomBetween(0.03, 0.07),
-    life: 0,
-    fadeStart: Number.POSITIVE_INFINITY,
+  if (mode === 'fall') {
+    resetFalling(base, width, height, true)
+    return base
   }
+
+  // 'burst': merkezin biraz üstünden yukarı-dışa saçılır, sonra yerçekimi alır.
+  const kindRoll = Math.random()
+  base.kind = kindRoll < 0.55 ? 'petal' : kindRoll < 0.9 ? 'foil' : 'dot'
+  base.color = base.kind === 'petal' ? pick(PETAL_COLORS) : pick(FOIL_COLORS)
+
+  const angle = randomBetween(-Math.PI * 0.92, -Math.PI * 0.08)
+  const speed = randomBetween(3.2, 8.4)
+  base.x = width / 2 + randomBetween(-40, 40)
+  base.y = height * 0.42 + randomBetween(-20, 20)
+  base.vx = Math.cos(angle) * speed
+  base.vy = Math.sin(angle) * speed
+  base.rotation = randomBetween(0, Math.PI * 2)
+  base.spin = randomBetween(-0.14, 0.14)
+  base.size = base.kind === 'dot' ? randomBetween(2, 3.5) : randomBetween(6, 12)
+  base.swayPhase = randomBetween(0, Math.PI * 2)
+  base.swaySpeed = randomBetween(0.02, 0.05)
+  base.swayRange = randomBetween(0.2, 0.6)
+  base.flutterPhase = randomBetween(0, Math.PI * 2)
+  base.flutterSpeed = randomBetween(0.05, 0.11)
+  base.fadeStart = randomBetween(70, 110)
+  return base
 }
 
 function drawParticle(ctx: CanvasRenderingContext2D, p: Particle, alpha: number) {
@@ -131,7 +153,7 @@ function drawParticle(ctx: CanvasRenderingContext2D, p: Particle, alpha: number)
     ctx.scale(Math.max(0.12, Math.abs(flutter)), 1)
     ctx.fillRect(-w / 2, -h / 2, w, h)
   } else {
-    // Yaprak: bir ucu sivri elips.
+    // Yaprak: yumuşak elips.
     ctx.scale(Math.max(0.15, Math.abs(flutter)), 1)
     ctx.beginPath()
     ctx.ellipse(0, 0, p.size * 0.42, p.size * 0.72, 0, 0, Math.PI * 2)
@@ -157,51 +179,101 @@ export function Celebration({ mode = 'fall', runKey = 0 }: CelebrationProps) {
     const ctx = canvas.getContext('2d', { alpha: true })
     if (!ctx) return
 
-    let width = window.innerWidth
-    let height = window.innerHeight
-    let dpr = Math.min(window.devicePixelRatio || 1, 2)
+    const continuous = mode === 'fall'
 
-    const resize = () => {
-      width = window.innerWidth
-      height = window.innerHeight
-      dpr = Math.min(window.devicePixelRatio || 1, 2)
+    let width = 0
+    let height = 0
+    let particles: Particle[] = []
+    let ready = false
+
+    /**
+     * Görünür alanı ölçer ve canvas tamponunu ayarlar.
+     *
+     * Bazı durumlarda (henüz yerleşim yapılmamış sekme, gömülü webview,
+     * bfcache dönüşü) `innerWidth` ilk karede 0 gelebiliyor. Böyle bir anda
+     * kurulum yapılırsa canvas 0x0 kalır ve konfeti hiç görünmez; bu yüzden
+     * ölçü geçerli olana kadar bekleyip parçacıkları o an üretiyoruz.
+     */
+    const measure = (): boolean => {
+      const w = window.innerWidth || document.documentElement.clientWidth || 0
+      const h = window.innerHeight || document.documentElement.clientHeight || 0
+      if (w <= 0 || h <= 0) return false
+
+      width = w
+      height = h
+      const dpr = Math.min(window.devicePixelRatio || 1, 2)
       canvas.width = Math.floor(width * dpr)
       canvas.height = Math.floor(height * dpr)
       canvas.style.width = `${width}px`
       canvas.style.height = `${height}px`
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      return true
     }
-    resize()
 
-    // Küçük ekranda daha az parçacık: 375px'te ~54, 1440px'te ~120.
-    const density = mode === 'burst' ? 0.11 : 0.14
-    const count = Math.round(Math.min(130, Math.max(46, width * density)))
-    const particles = Array.from({ length: count }, () => createParticle(width, height, mode))
+    /*
+      Yoğunluk: sürekli yağmur sayfanın tamamı boyunca açık kalacağı için
+      metnin önüne geçmeyecek kadar seyrek tutuluyor. 375px'te ~38 parçacık,
+      masaüstünde ~100.
+    */
+    const density = continuous ? 0.1 : 0.11
+    const maxCount = continuous ? 100 : 130
 
-    const gravity = mode === 'burst' ? 0.14 : 0.012
-    const drag = mode === 'burst' ? 0.985 : 1
-    const maxFrames = mode === 'burst' ? 210 : 460
+    const buildParticles = () => {
+      const count = Math.round(Math.min(maxCount, Math.max(34, width * density)))
+      particles = Array.from({ length: count }, () => createParticle(width, height, mode))
+    }
+
+    /** Ölçü geçerli hâle geldiğinde kurulumu bir kez tamamlar. */
+    const ensureReady = () => {
+      if (!measure()) return false
+      if (!ready) {
+        ready = true
+        buildParticles()
+        schedule()
+      }
+      return true
+    }
+
+    const gravity = continuous ? 0.012 : 0.14
+    const drag = continuous ? 1 : 0.985
+    // Sürekli modda bitiş yok; patlama ~3.5 sn sonra kapanır.
+    const maxFrames = continuous ? Number.POSITIVE_INFINITY : 210
 
     let frame = 0
     let rafId = 0
     let stopped = false
+    let frameQueued = false
 
     const stop = () => {
       if (stopped) return
       stopped = true
+      frameQueued = false
       cancelAnimationFrame(rafId)
       ctx.clearRect(0, 0, width, height)
       canvas.style.display = 'none'
     }
 
+    /**
+     * Tek bir kare planlar.
+     * `frameQueued` koruması olmasa, sekme görünür hâle geldiğinde hem
+     * baştan bekleyen kare hem de yeni kare çalışır ve animasyon çift
+     * hızda akardı. Sayfa gizliyken hiç kare planlamıyoruz.
+     */
+    const schedule = () => {
+      if (stopped || frameQueued || !ready || document.hidden) return
+      frameQueued = true
+      rafId = requestAnimationFrame(tick)
+    }
+
     const tick = () => {
+      frameQueued = false
       if (stopped) return
       frame += 1
       ctx.clearRect(0, 0, width, height)
 
-      // Bitişe doğru tüm sahne yumuşakça sönsün.
+      // Yalnızca patlama modunda sahne sonunda sönümlenir.
       const globalFade =
-        frame > maxFrames - 70 ? Math.max(0, (maxFrames - frame) / 70) : 1
+        !continuous && frame > maxFrames - 70 ? Math.max(0, (maxFrames - frame) / 70) : 1
 
       let alive = 0
 
@@ -219,12 +291,16 @@ export function Celebration({ mode = 'fall', runKey = 0 }: CelebrationProps) {
         p.rotation += p.spin
 
         // Yanlardan çıkanı diğer taraftan geri al (yalnızca süzülme modunda).
-        if (mode === 'fall') {
+        if (continuous) {
           if (p.x < -20) p.x = width + 20
           else if (p.x > width + 20) p.x = -20
         }
 
-        if (p.y > height + 30) continue
+        if (p.y > height + 30) {
+          // Sürekli modda parçacık yok edilmez, başa alınır.
+          if (continuous) resetFalling(p, width, height, false)
+          continue
+        }
         alive += 1
 
         let alpha = globalFade
@@ -232,35 +308,58 @@ export function Celebration({ mode = 'fall', runKey = 0 }: CelebrationProps) {
           alpha *= Math.max(0, 1 - (p.life - p.fadeStart) / 60)
         }
         // Süzülme modunda alt kenara yaklaşınca sönümlensin.
-        if (mode === 'fall' && p.y > height * 0.78) {
-          alpha *= Math.max(0, 1 - (p.y - height * 0.78) / (height * 0.22))
+        if (continuous && p.y > height * 0.8) {
+          alpha *= Math.max(0, 1 - (p.y - height * 0.8) / (height * 0.2))
         }
 
         if (alpha > 0.01) drawParticle(ctx, p, alpha)
       }
 
-      if (alive === 0 || frame >= maxFrames) {
+      if (!continuous && (alive === 0 || frame >= maxFrames)) {
         stop()
         return
       }
-      rafId = requestAnimationFrame(tick)
+      schedule()
     }
 
     // Sekme arka plandayken boşuna kare üretme.
     const onVisibility = () => {
-      if (document.hidden) cancelAnimationFrame(rafId)
-      else if (!stopped) rafId = requestAnimationFrame(tick)
+      if (document.hidden) {
+        cancelAnimationFrame(rafId)
+        frameQueued = false
+      } else {
+        ensureReady()
+        schedule()
+      }
+    }
+
+    const onResize = () => {
+      ensureReady()
     }
 
     canvas.style.display = 'block'
-    window.addEventListener('resize', resize)
+    window.addEventListener('resize', onResize)
     document.addEventListener('visibilitychange', onVisibility)
-    rafId = requestAnimationFrame(tick)
+
+    /*
+      ResizeObserver, `resize` olayının gelmediği durumları da yakalar:
+      panel/webview sonradan boyutlanması, mobilde adres çubuğunun açılıp
+      kapanması gibi. Ölçü sıfırdan gerçek değere geçtiği anda kurulum tamamlanır.
+    */
+    let observer: ResizeObserver | null = null
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(() => ensureReady())
+      observer.observe(document.documentElement)
+    }
+
+    ensureReady()
 
     return () => {
       stopped = true
+      frameQueued = false
       cancelAnimationFrame(rafId)
-      window.removeEventListener('resize', resize)
+      observer?.disconnect()
+      window.removeEventListener('resize', onResize)
       document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [mode, runKey])

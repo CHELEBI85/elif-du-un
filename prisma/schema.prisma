@@ -19,7 +19,8 @@ enum EventStatus {
 /// Yönetim paneline giriş yapabilen kullanıcılar (çift / organizatör).
 model User {
   id           String   @id @default(cuid())
-  email        String   @unique
+  /// Panele giriş için kullanılan benzersiz kullanıcı adı (küçük harfe normalize edilir).
+  username     String   @unique
   name         String?
   passwordHash String
   createdAt    DateTime @default(now())

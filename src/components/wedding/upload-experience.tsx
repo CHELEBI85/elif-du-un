@@ -117,17 +117,28 @@ export function UploadExperience({ slug, coupleName }: UploadExperienceProps) {
     [photos.length],
   )
 
+  /** Oluşturulmuş tüm önizleme URL'lerini serbest bırakır. */
+  const releaseAll = useCallback(() => {
+    for (const url of objectUrls.current) URL.revokeObjectURL(url)
+    objectUrls.current.clear()
+  }, [])
+
+  /*
+    DİKKAT — setState updater'ları saf olmalıdır.
+    React StrictMode bu fonksiyonları geliştirmede iki kez çağırır; içlerine
+    setState/revoke gibi yan etkiler koyulursa iki kez işlenir. Bu yüzden
+    aşağıdaki işlemlerin tamamı updater'ın dışında yapılıyor.
+  */
   const removePhoto = useCallback(
     (id: string) => {
-      setPhotos((prev) => {
-        const target = prev.find((p) => p.id === id)
-        if (target) releasePhotos([target])
-        const next = prev.filter((p) => p.id !== id)
-        if (next.length === 0) setPhase('idle')
-        return next
-      })
+      const target = photos.find((p) => p.id === id)
+      if (target) releasePhotos([target])
+
+      const next = photos.filter((p) => p.id !== id)
+      setPhotos(next)
+      if (next.length === 0) setPhase('idle')
     },
-    [releasePhotos],
+    [photos, releasePhotos],
   )
 
   const send = useCallback(
@@ -165,7 +176,10 @@ export function UploadExperience({ slug, coupleName }: UploadExperienceProps) {
         if (ticket) jobs.push({ id: photo.id, file: photo.file, ticket })
       })
 
-      await runUploads(jobs, {
+      // Bu turdan önce zaten yüklenmiş olanlar (kısmi başarı sonrası tekrar denemede).
+      const alreadyDone = photos.filter((p) => p.status === 'done').length
+
+      const outcomes = await runUploads(jobs, {
         slug,
         sessionId,
         concurrency: UPLOAD_CONCURRENCY,
@@ -183,34 +197,34 @@ export function UploadExperience({ slug, coupleName }: UploadExperienceProps) {
           ),
       })
 
-      // Nihai durumu doğrudan en güncel state üzerinden okuyoruz.
-      setPhotos((current) => {
-        const succeeded = current.filter((p) => p.status === 'done')
-        const stillFailing = current.filter((p) => p.status !== 'done')
+      /*
+        Sonucu state'ten okumak yerine runUploads'un döndürdüğü listeden
+        hesaplıyoruz. Böylece sayaç, updater'ın kaç kez çalıştığından
+        bağımsız ve tek seferlik oluyor.
+      */
+      const failedCount = outcomes.filter((o) => !o.ok).length
 
-        if (stillFailing.length === 0) {
-          releasePhotos(current)
-          setUploadedTotal((n) => n + succeeded.length)
-          setPhase('success')
-          return []
-        }
-
+      if (failedCount === 0) {
+        const uploadedNow = alreadyDone + outcomes.filter((o) => o.ok).length
+        releaseAll()
+        setPhotos([])
+        setUploadedTotal((n) => n + uploadedNow)
+        setPhase('success')
+      } else {
         setPhase('review')
-        return current
-      })
+      }
     },
-    [photos, releasePhotos, slug],
+    [photos, releaseAll, slug],
   )
 
   const startOver = useCallback(() => {
-    setPhotos((prev) => {
-      releasePhotos(prev)
-      return []
-    })
+    // Yan etki updater'ın dışında: StrictMode iki kez çağırsa bile güvenli.
+    releaseAll()
+    setPhotos([])
     setRejected([])
     setBanner(null)
     setPhase('idle')
-  }, [releasePhotos])
+  }, [releaseAll])
 
   const pendingCount = photos.filter((p) => p.status !== 'done').length
   const failedCount = photos.filter((p) => p.status === 'error').length

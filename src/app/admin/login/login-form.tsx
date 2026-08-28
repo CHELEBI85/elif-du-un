@@ -36,14 +36,17 @@ export function LoginForm({ next, initialError }: { next?: string; initialError?
         </p>
       ) : null}
 
-      <Field label="E-posta" htmlFor="email">
+      <Field label="Kullanıcı adı" htmlFor="username">
         <Input
-          id="email"
-          name="email"
-          type="email"
+          id="username"
+          name="username"
+          type="text"
           autoComplete="username"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
           required
-          placeholder="ornek@eposta.com"
+          placeholder="kullanici-adi"
         />
       </Field>
 

@@ -6,7 +6,7 @@ import { LogoutButton } from './logout-button'
  * Yönetim paneli kabuğu. Herkese açık düğün sayfasıyla aynı tasarım dilini
  * paylaşır (aynı palet, aynı serif başlıklar) ama daha işlevsel ve yoğundur.
  */
-export function AdminShell({ email, children }: { email: string; children: React.ReactNode }) {
+export function AdminShell({ username, children }: { username: string; children: React.ReactNode }) {
   return (
     <div className="min-h-dvh bg-cream">
       <div className="mx-auto flex max-w-7xl flex-col lg:flex-row">
@@ -29,8 +29,8 @@ export function AdminShell({ email, children }: { email: string; children: React
           </div>
 
           <div className="hidden border-t border-line px-5 py-5 lg:block">
-            <p className="truncate text-xs text-muted" title={email}>
-              {email}
+            <p className="truncate text-xs text-muted" title={username}>
+              {username}
             </p>
             <LogoutButton />
           </div>

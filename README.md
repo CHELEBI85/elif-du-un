@@ -33,8 +33,9 @@ dolduğunda otomatik olarak silinir.
 10. [Cloudinary klasör stratejisi](#10-cloudinary-klasör-stratejisi)
 11. [Fotoğraf temizliği ve saklama](#11-fotoğraf-temizliği-ve-saklama)
 12. [Güvenlik notları](#12-güvenlik-notları)
-13. [Mimari](#13-mimari)
-14. [Bilinen sınırlar](#14-bilinen-sınırlar)
+13. [Tek etkinlik modu](#13-tek-etkinlik-modu)
+14. [Mimari](#14-mimari)
+15. [Bilinen sınırlar](#15-bilinen-sınırlar)
 
 ---
 
@@ -86,7 +87,7 @@ cp .env.example .env
 | `AUTH_SECRET` | Yönetici oturum belirtecini imzalar |
 | `CRON_SECRET` | `/api/cron/cleanup` uç noktasını korur |
 | `NEXT_PUBLIC_APP_URL` | QR kodlarının işaret ettiği herkese açık adres |
-| `SEED_ADMIN_EMAIL` | Yalnızca seed için; sonrasında silinebilir |
+| `SEED_ADMIN_USERNAME` | Panel giriş kullanıcı adı (3-32 karakter); yalnızca seed için |
 | `SEED_ADMIN_PASSWORD` | Yalnızca seed için; en az 10 karakter |
 
 Gizli anahtarları üretmek için:
@@ -142,7 +143,7 @@ Bu dosya `.env` yüklemesini `dotenv/config` ile açıkça yapar.
 
 ## 6. Yönetici hesabı oluşturma
 
-`.env` içine `SEED_ADMIN_EMAIL` ve `SEED_ADMIN_PASSWORD` yazın, sonra:
+`.env` içine `SEED_ADMIN_USERNAME` ve `SEED_ADMIN_PASSWORD` yazın, sonra:
 
 ```bash
 npm run db:seed
@@ -151,6 +152,7 @@ npm run db:seed
 Bu komut şunları yapar (tekrar çalıştırılabilir / idempotent):
 
 - Yönetici kullanıcısını oluşturur veya şifresini günceller (bcrypt, 12 tur).
+  Giriş **kullanıcı adı** ile yapılır, e-posta ile değil.
 - `Elif & Yunus Emre` etkinliğini `elif-aydin-yunus-emre-kapukaya` slug'ıyla oluşturur.
 - Saklama süresini 7 gün olarak ayarlar.
 
@@ -170,9 +172,9 @@ npm run dev
 
 | Adres | Açıklama |
 |---|---|
-| `http://localhost:3000` | Aktif düğün sayfasına yönlendirir |
-| `http://localhost:3000/w/elif-aydin-yunus-emre-kapukaya` | Misafir yükleme sayfası |
-| `http://localhost:3000/admin/login` | Yönetici girişi |
+| `http://localhost:3100` | Aktif düğün sayfasına yönlendirir |
+| `http://localhost:3100/w/elif-aydin-yunus-emre-kapukaya` | Misafir yükleme sayfası |
+| `http://localhost:3100/admin/login` | Yönetici girişi |
 
 Diğer komutlar:
 
@@ -322,7 +324,28 @@ sınırlayıcı bellek içidir ve ilk savunma hattıdır.
 
 ---
 
-## 13. Mimari
+## 13. Tek etkinlik modu
+
+Bu kurulum **tek bir düğün** için yapılandırılmıştır: yönetim panelinde etkinlik
+oluşturma ekranı yoktur ve `/admin/events/new` rotası bulunmaz.
+
+Veri modeli çoklu etkinliği desteklemeye devam eder (`Event` tablosu, slug bazlı
+yönlendirme, etkinliğe göre ayrılmış Cloudinary klasörleri). İkinci bir düğün
+gerekirse yalnızca oluşturma arayüzünü geri eklemek yeterlidir.
+
+Etkinliği oluşturmak veya yeniden oluşturmak için:
+
+```bash
+npm run db:seed
+```
+
+> Ayarlar ekranındaki **Etkinliği sil** işlemi, oluşturma arayüzü olmadığı için
+> geri alınamaz; sonrasında etkinliği yalnızca seed komutuyla geri getirebilirsiniz.
+> Sadece fotoğrafları silmek istiyorsanız galeriyi kullanın.
+
+---
+
+## 14. Mimari
 
 ```
 src/
@@ -366,7 +389,7 @@ sayfalar hâlinde çeker.
 
 ---
 
-## 14. Bilinen sınırlar
+## 15. Bilinen sınırlar
 
 **Cloudinary arşiv (ZIP) indirme**
 "Tüm Fotoğrafları İndir" arşivi **Cloudinary tarafında** oluşturur; Vercel

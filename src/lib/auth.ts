@@ -29,19 +29,20 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   return bcrypt.compare(password, hash)
 }
 
-/** E-posta + şifre doğrular; başarılıysa oturum çerezini yazar. */
-export async function signIn(email: string, password: string): Promise<AdminSession | null> {
-  const normalized = email.trim().toLowerCase()
-  const user = await prisma.user.findUnique({ where: { email: normalized } })
+/** Kullanıcı adı + şifre doğrular; başarılıysa oturum çerezini yazar. */
+export async function signIn(username: string, password: string): Promise<AdminSession | null> {
+  // Kullanıcı adı büyük/küçük harf duyarsız: her yerde küçük harfe indirilir.
+  const normalized = username.trim().toLowerCase()
+  const user = await prisma.user.findUnique({ where: { username: normalized } })
 
   const ok = await verifyPassword(password, user?.passwordHash ?? DUMMY_HASH)
 
   if (!user || !ok) {
-    log.warn('auth', 'Başarısız giriş denemesi', { email: normalized })
+    log.warn('auth', 'Başarısız giriş denemesi', { username: normalized })
     return null
   }
 
-  const session: AdminSession = { userId: user.id, email: user.email }
+  const session: AdminSession = { userId: user.id, username: user.username }
   await writeSessionCookie(session)
   log.info('auth', 'Giriş başarılı', { userId: user.id })
   return session

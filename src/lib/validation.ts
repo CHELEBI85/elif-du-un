@@ -42,8 +42,16 @@ export const bulkDeleteSchema = z.object({
   photoIds: z.array(z.string().min(1).max(64)).min(1).max(500),
 })
 
+/** Panel girişinde kullanılan kullanıcı adı. */
+export const usernameSchema = z
+  .string()
+  .trim()
+  .min(3, 'Kullanıcı adı en az 3 karakter olmalı')
+  .max(32, 'Kullanıcı adı en fazla 32 karakter olabilir')
+  .regex(/^[a-zA-Z0-9._-]+$/, 'Yalnızca harf, rakam, nokta, alt çizgi ve tire kullanılabilir')
+
 export const loginSchema = z.object({
-  email: z.string().email('Geçerli bir e-posta adresi girin'),
+  username: usernameSchema,
   password: z.string().min(1, 'Şifre gerekli'),
 })
 
@@ -59,10 +67,15 @@ export const eventSettingsSchema = z.object({
     .transform((v) => (v && v.trim().length > 0 ? v : null))
     .refine((v) => v === null || !Number.isNaN(Date.parse(v)), 'Geçersiz tarih'),
   retentionDays: z.coerce.number().int().min(1, 'En az 1 gün').max(365, 'En fazla 365 gün'),
+  /**
+   * Açıkken fotoğraflar süresiz saklanır: `expiresAt` boş bırakılır, yükleme
+   * hiç kapanmaz ve otomatik temizlik bu etkinliğe dokunmaz. `retentionDays`
+   * yine saklanır, böylece süreli moda dönüldüğünde eski değer kaybolmaz.
+   */
+  unlimitedRetention: z.boolean(),
   uploadEnabled: z.boolean(),
 })
 
-export const createEventSchema = eventSettingsSchema
 
 export type SignRequest = z.infer<typeof signRequestSchema>
 export type CreatePhotoInput = z.infer<typeof createPhotoSchema>

@@ -14,7 +14,7 @@ export const messages = {
     batchLimit: (max: number) => `Tek seferde en fazla ${max} fotoğraf gönderebilirsin.`,
     compressionFailed: 'Bu fotoğraf hazırlanamadı. Lütfen başka bir fotoğraf deneyin.',
     notFound: 'Aradığınız sayfa bulunamadı.',
-    invalidCredentials: 'E-posta veya şifre hatalı.',
+    invalidCredentials: 'Kullanıcı adı veya şifre hatalı.',
   },
   upload: {
     cta: 'Fotoğraf Yükle',

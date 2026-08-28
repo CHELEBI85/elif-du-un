@@ -71,7 +71,9 @@ export default async function WeddingPage({ params }: PageProps) {
 
             <Reveal delay={120}>
               <div className="mt-10">
-                <PrivacyNote retentionDays={event.retentionDays} />
+                <PrivacyNote
+                  retentionDays={event.expiresAt === null ? null : event.retentionDays}
+                />
               </div>
             </Reveal>
           </>

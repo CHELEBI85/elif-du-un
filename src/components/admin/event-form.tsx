@@ -27,6 +27,8 @@ interface EventFormProps {
     eventDate: Date | null
     retentionDays: number
     uploadEnabled: boolean
+    /** Boşsa süresiz saklama açıktır. */
+    expiresAt: Date | null
   }
 }
 
@@ -47,6 +49,10 @@ export function EventForm({ action, submitLabel, appUrl, event }: EventFormProps
   const [slug, setSlug] = useState(event?.slug ?? '')
   const [slugTouched, setSlugTouched] = useState(Boolean(event))
   const [uploadEnabled, setUploadEnabled] = useState(event?.uploadEnabled ?? true)
+  // expiresAt boşsa etkinlik süresiz saklanıyor demektir.
+  const [unlimitedRetention, setUnlimitedRetention] = useState(
+    event ? event.expiresAt === null : false,
+  )
 
   const originalSlug = event?.slug
   const slugChanged = Boolean(originalSlug && slug !== originalSlug)
@@ -217,7 +223,11 @@ export function EventForm({ action, submitLabel, appUrl, event }: EventFormProps
             label="Saklama süresi (gün)"
             htmlFor="retentionDays"
             error={state.fieldErrors?.retentionDays}
-            hint="Süre dolunca fotoğraflar otomatik olarak silinir."
+            hint={
+              unlimitedRetention
+                ? 'Süresiz saklama açıkken bu değer kullanılmaz.'
+                : 'Süre dolunca fotoğraflar otomatik olarak silinir.'
+            }
           >
             <Input
               id="retentionDays"
@@ -226,9 +236,33 @@ export function EventForm({ action, submitLabel, appUrl, event }: EventFormProps
               min={1}
               max={365}
               required
+              /*
+                DIKKAT: disabled KULLANMA. Devre disi input'lar form verisine
+                dahil edilmez; sunucu retentionDays'i bos gorup dogrulamada
+                takilir ve kayit hic yapilmaz. readOnly ile deger gonderilmeye
+                devam eder, boylece sureli moda donuldugunde eski gun sayisi korunur.
+              */
+              readOnly={unlimitedRetention}
+              aria-disabled={unlimitedRetention}
               defaultValue={event?.retentionDays ?? DEFAULT_RETENTION_DAYS}
             />
           </Field>
+        </div>
+
+        <div className="flex items-start justify-between gap-6 rounded-md border border-line bg-ivory p-4">
+          <div>
+            <Label htmlFor="unlimitedRetention">Süresiz sakla</Label>
+            <p className="mt-1 max-w-md text-xs leading-relaxed text-muted">
+              Açıkken fotoğraflar hiçbir zaman otomatik silinmez ve yükleme kapanmaz.
+              Fotoğrafları dilediğin zaman galeriden kendin silebilirsin.
+            </p>
+          </div>
+          <Switch
+            id="unlimitedRetention"
+            name="unlimitedRetention"
+            checked={unlimitedRetention}
+            onCheckedChange={setUnlimitedRetention}
+          />
         </div>
 
         <div className="flex items-start justify-between gap-6 rounded-md border border-line bg-ivory p-4">

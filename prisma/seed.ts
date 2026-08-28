@@ -22,13 +22,19 @@ const EVENT = {
 } as const
 
 async function main() {
-  const email = process.env.SEED_ADMIN_EMAIL?.trim().toLowerCase()
+  const username = process.env.SEED_ADMIN_USERNAME?.trim().toLowerCase()
   const password = process.env.SEED_ADMIN_PASSWORD
 
-  if (!email || !password) {
+  if (!username || !password) {
     throw new Error(
-      'SEED_ADMIN_EMAIL ve SEED_ADMIN_PASSWORD ortam degiskenleri gerekli. ' +
+      'SEED_ADMIN_USERNAME ve SEED_ADMIN_PASSWORD ortam degiskenleri gerekli. ' +
         '.env dosyaniza ekleyip tekrar deneyin.',
+    )
+  }
+  if (!/^[a-z0-9._-]{3,32}$/.test(username)) {
+    throw new Error(
+      'SEED_ADMIN_USERNAME 3-32 karakter olmali ve yalnizca harf, rakam, nokta, ' +
+        'alt cizgi veya tire icermeli.',
     )
   }
   if (password.length < 10) {
@@ -38,19 +44,18 @@ async function main() {
   const passwordHash = await bcrypt.hash(password, 12)
 
   const user = await prisma.user.upsert({
-    where: { email },
+    where: { username },
     update: { passwordHash },
-    create: { email, passwordHash, name: 'Etkinlik Sahibi' },
+    create: { username, passwordHash, name: 'Etkinlik Sahibi' },
   })
 
   // Dugun tarihi bilinmiyor: admin panelinden girilecek.
-  // Tarih girilene kadar saklama suresi olusturulma tarihinden sayilir.
-  const existing = await prisma.event.findUnique({ where: { slug: EVENT.slug } })
-  const createdAt = existing?.createdAt ?? new Date()
-  const base = existing?.eventDate ?? createdAt
-  const start = new Date(base)
-  start.setHours(23, 59, 59, 999)
-  const expiresAt = new Date(start.getTime() + RETENTION_DAYS * 86_400_000)
+  //
+  // SAKLAMA: Varsayilan olarak SURESIZ (expiresAt = null). Boylece fotograflar
+  // otomatik silinmez ve yukleme hicbir zaman kapanmaz. Sureli saklamaya
+  // gecmek icin panelden "Suresiz sakla" anahtarini kapatmak yeterli;
+  // RETENTION_DAYS o zaman baslangic degeri olarak kullanilir.
+  const expiresAt = null
 
   const event = await prisma.event.upsert({
     where: { slug: EVENT.slug },
@@ -69,10 +74,10 @@ async function main() {
     },
   })
 
-  console.log('Yonetici hazir :', user.email)
+  console.log('Yonetici hazir :', user.username)
   console.log('Etkinlik hazir :', event.coupleName)
   console.log('Misafir adresi :', `/w/${event.slug}`)
-  console.log('Saklama suresi :', `${event.retentionDays} gun`)
+  console.log('Saklama       :', event.expiresAt ? `${event.retentionDays} gun` : 'suresiz')
 }
 
 main()

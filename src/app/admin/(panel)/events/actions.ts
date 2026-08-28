@@ -25,6 +25,7 @@ function readForm(formData: FormData) {
     slug: String(formData.get('slug') ?? '').trim(),
     eventDate: String(formData.get('eventDate') ?? ''),
     retentionDays: String(formData.get('retentionDays') ?? ''),
+    unlimitedRetention: formData.get('unlimitedRetention') === 'on',
     uploadEnabled: formData.get('uploadEnabled') === 'on',
   }
 }
@@ -36,48 +37,6 @@ function collectFieldErrors(issues: { path: PropertyKey[]; message: string }[]) 
     if (key && !fieldErrors[key]) fieldErrors[key] = issue.message
   }
   return fieldErrors
-}
-
-export async function createEventAction(
-  _prev: EventFormState,
-  formData: FormData,
-): Promise<EventFormState> {
-  await requireSession()
-
-  const parsed = eventSettingsSchema.safeParse(readForm(formData))
-  if (!parsed.success) return { fieldErrors: collectFieldErrors(parsed.error.issues) }
-
-  const data = parsed.data
-  const existing = await prisma.event.findUnique({ where: { slug: data.slug } })
-  if (existing) return { fieldErrors: { slug: 'Bu bağlantı adresi zaten kullanılıyor.' } }
-
-  const eventDate = data.eventDate ? new Date(data.eventDate) : null
-
-  let created
-  try {
-    created = await prisma.event.create({
-      data: {
-        slug: data.slug,
-        title: data.title,
-        coupleName: data.coupleName,
-        brideName: data.brideName,
-        groomName: data.groomName,
-        eventDate,
-        retentionDays: data.retentionDays,
-        uploadEnabled: data.uploadEnabled,
-        expiresAt: computeExpiresAt(eventDate, data.retentionDays),
-      },
-    })
-  } catch (error) {
-    log.error('admin/events', 'Etkinlik oluşturulamadı', {
-      error: error instanceof Error ? error.message : 'bilinmeyen hata',
-    })
-    return { error: messages.errors.server }
-  }
-
-  revalidatePath('/admin/events')
-  revalidatePath('/admin')
-  redirect(`/admin/events/${created.id}`)
 }
 
 export async function updateEventAction(
@@ -102,13 +61,21 @@ export async function updateEventAction(
   }
 
   const eventDate = data.eventDate ? new Date(data.eventDate) : null
-  const expiresAt = computeExpiresAt(eventDate, data.retentionDays, current.createdAt)
+
+  /*
+    Süresiz mod: expiresAt boş bırakılır. resolveUploadState boş değeri
+    "süresi dolmadı" sayar, temizlik işi de yalnızca expiresAt dolu olan
+    etkinlikleri hedefler; dolayısıyla fotoğraflar hiç silinmez.
+  */
+  const expiresAt = data.unlimitedRetention
+    ? null
+    : computeExpiresAt(eventDate, data.retentionDays, current.createdAt)
 
   // Saklama süresi uzatıldıysa süresi dolmuş etkinlik tekrar aktif olabilir.
   const status =
     current.status === 'ARCHIVED'
       ? 'ARCHIVED'
-      : expiresAt.getTime() > Date.now()
+      : expiresAt === null || expiresAt.getTime() > Date.now()
         ? 'ACTIVE'
         : 'EXPIRED'
 

@@ -23,7 +23,7 @@ export async function loginAction(
   }
 
   const parsed = loginSchema.safeParse({
-    email: formData.get('email'),
+    username: formData.get('username'),
     password: formData.get('password'),
   })
 
@@ -31,7 +31,7 @@ export async function loginAction(
     return { error: parsed.error.issues[0]?.message ?? messages.errors.server }
   }
 
-  const session = await signIn(parsed.data.email, parsed.data.password)
+  const session = await signIn(parsed.data.username, parsed.data.password)
   if (!session) return { error: messages.errors.invalidCredentials }
 
   const next = formData.get('next')

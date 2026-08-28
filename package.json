@@ -4,9 +4,9 @@
   "private": true,
   "description": "Elif Aydın & Yunus Emre Kapukaya — dügün misafir fotograf paylasim platformu",
   "scripts": {
-    "dev": "next dev",
-    "build": "prisma generate && next build",
-    "start": "next start",
+    "dev": "next dev --port 3100",
+    "build": "prisma generate && prisma migrate deploy && next build",
+    "start": "next start --port 3100",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "postinstall": "prisma generate",
@@ -15,7 +15,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "check:cloudinary": "node scripts/check-cloudinary.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.2.1",

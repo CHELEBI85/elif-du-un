@@ -48,6 +48,15 @@ export function DeleteEventCard({
         Etkinlik ve ona ait {formatCount(photoCount)} fotoğraf hem Cloudinary&apos;den hem
         veritabanından kalıcı olarak silinir. Bu işlem geri alınamaz.
       </p>
+      <p className="mt-3 max-w-lg text-sm leading-relaxed text-danger">
+        Bu kurulum tek bir düğün içindir ve panelde etkinlik oluşturma ekranı yoktur. Silersen
+        misafir sayfası çalışmayı bırakır ve etkinliği yalnızca sunucuda{' '}
+        <code className="rounded-xs bg-danger-wash px-1 py-0.5 font-mono text-xs">
+          npm run db:seed
+        </code>{' '}
+        komutuyla yeniden oluşturabilirsin. Yalnızca fotoğrafları silmek istiyorsan bunun yerine
+        galeriyi kullan.
+      </p>
 
       <Dialog>
         <DialogTrigger asChild>

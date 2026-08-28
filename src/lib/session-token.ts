@@ -11,7 +11,7 @@ const ISSUER = 'elif-yunus-emre-dugun'
 
 export interface AdminSession {
   userId: string
-  email: string
+  username: string
 }
 
 function secretKey(secret: string): Uint8Array {
@@ -19,7 +19,7 @@ function secretKey(secret: string): Uint8Array {
 }
 
 export async function createSessionToken(session: AdminSession, secret: string): Promise<string> {
-  return new SignJWT({ email: session.email })
+  return new SignJWT({ username: session.username })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(session.userId)
     .setIssuer(ISSUER)
@@ -34,8 +34,8 @@ export async function verifySessionToken(
 ): Promise<AdminSession | null> {
   try {
     const { payload } = await jwtVerify(token, secretKey(secret), { issuer: ISSUER })
-    if (!payload.sub || typeof payload.email !== 'string') return null
-    return { userId: payload.sub, email: payload.email }
+    if (!payload.sub || typeof payload.username !== 'string') return null
+    return { userId: payload.sub, username: payload.username }
   } catch {
     return null
   }

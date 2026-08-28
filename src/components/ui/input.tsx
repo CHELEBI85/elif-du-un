@@ -12,6 +12,8 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
         'placeholder:text-faint transition-colors',
         'focus:border-gold focus:outline-none focus-visible:outline-none',
         'disabled:cursor-not-allowed disabled:bg-sand disabled:opacity-60',
+        // readOnly, disabled gibi gorunur ama degeri form verisine dahil edilir.
+        'read-only:cursor-not-allowed read-only:bg-sand read-only:opacity-60',
         'aria-[invalid=true]:border-danger',
         className,
       )}

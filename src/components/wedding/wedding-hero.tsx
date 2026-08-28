@@ -44,17 +44,24 @@ export function WeddingHero({ coupleName, eventDate, coverImage }: WeddingHeroPr
         </>
       )}
 
-      <div className="mx-auto flex min-h-[88svh] max-w-2xl flex-col items-center justify-center px-6 py-24 text-center sm:min-h-[82svh]">
+      {/*
+        Yükseklik bilinçli olarak sınırlı: misafir QR'ı okuttuğunda
+        "Fotoğraf Yükle" düğmesi ilk ekranda görünmeli. Daha uzun bir hero'da
+        düğme katlamanın altında kalıyor ve kullanıcı kaydırmak zorunda
+        kalıyordu. `svh` kullanılıyor ki mobil tarayıcı çubukları açıkken de
+        hesap doğru olsun.
+      */}
+      <div className="mx-auto flex min-h-[64svh] max-w-2xl flex-col items-center justify-center px-6 py-14 text-center [@media(max-height:740px)]:py-8 sm:min-h-[76svh] sm:py-20">
         <div className="stagger flex w-full flex-col items-center">
           <p className="eyebrow">{dateLabel ?? 'Düğünümüz'}</p>
 
-          <Ornament className="mt-7" width="w-28" animated />
+          <Ornament className="mt-7 [@media(max-height:740px)]:mt-5" width="w-28" animated />
 
           {/*
             Görsel olarak isimler üç satıra ayrılıyor; ekran okuyucular ise
             tek ve doğru bir başlık duyuyor.
           */}
-          <h1 className="mt-10 w-full">
+          <h1 className="mt-10 w-full [@media(max-height:740px)]:mt-6">
             <span className="sr-only">{coupleName}</span>
             {pair ? (
               <span aria-hidden="true" className="flex w-full flex-col items-center gap-2 sm:gap-3">
@@ -69,13 +76,19 @@ export function WeddingHero({ coupleName, eventDate, coverImage }: WeddingHeroPr
             )}
           </h1>
 
-          <Ornament className="mt-10" width="w-28" animated />
+          <Ornament className="mt-10 [@media(max-height:740px)]:mt-6" width="w-28" animated />
 
-          <p className="pull-quote mt-10 max-w-md">
+          <p className="pull-quote mt-10 max-w-md [@media(max-height:740px)]:mt-6">
             Bu güzel günün anılarını sizin gözünüzden görmek istiyoruz.
           </p>
 
-          <p className="mt-4 max-w-sm text-[0.9375rem] leading-relaxed text-muted">
+          {/*
+            Asıl yönerge bu satır — misafirin ne yapması gerektiğini söylüyor.
+            Şiirsel cümleden daha ağır bassın diye en koyu ton, orta kalınlık
+            ve daha iri punto kullanılıyor; ayrıca sürekli akan konfetinin
+            önünde net okunması gerekiyor.
+          */}
+          <p className="mt-7 max-w-md text-xl font-medium leading-snug text-ink [@media(max-height:740px)]:mt-5 sm:text-2xl">
             Düğünde çektiğiniz fotoğrafları bizimle paylaşın.
           </p>
         </div>
