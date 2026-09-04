@@ -13,3 +13,6 @@ yarn-error.log*
 next-env.d.ts
 *.tsbuildinfo
 /prisma/dev.db
+
+.vercel
+.env*
