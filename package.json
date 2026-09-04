@@ -5,7 +5,7 @@
   "description": "Elif Aydın & Yunus Emre Kapukaya — dügün misafir fotograf paylasim platformu",
   "scripts": {
     "dev": "next dev --port 3100",
-    "build": "prisma generate && prisma migrate deploy && next build",
+    "build": "prisma generate && next build",
     "start": "next start --port 3100",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
