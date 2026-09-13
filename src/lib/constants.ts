@@ -4,7 +4,15 @@
  */
 
 /** Tek seferde seçilebilecek en fazla fotoğraf. */
-export const MAX_PHOTOS_PER_BATCH = 20
+export const MAX_PHOTOS_PER_BATCH = 300
+
+/**
+ * Tek imza isteğinde üretilecek en fazla yükleme izni.
+ * İzinler toplu değil, yükleme ilerledikçe bu boyutta parçalar hâlinde
+ * alınır: 300 fotoğrafın izni en başta alınsaydı yavaş bağlantıda yükleme
+ * bitmeden izinlerin süresi dolardı.
+ */
+export const TICKETS_PER_REQUEST = 20
 
 /** Sıkıştırmadan önce kabul edilen en büyük orijinal dosya boyutu. */
 export const MAX_ORIGINAL_FILE_BYTES = 15 * 1024 * 1024 // 15 MB
@@ -13,7 +21,7 @@ export const MAX_ORIGINAL_FILE_BYTES = 15 * 1024 * 1024 // 15 MB
 export const MAX_UPLOAD_FILE_BYTES = 12 * 1024 * 1024 // 12 MB
 
 /** Bir misafir oturumunun tek etkinlikte yükleyebileceği toplam fotoğraf. */
-export const MAX_PHOTOS_PER_SESSION = 100
+export const MAX_PHOTOS_PER_SESSION = 1000
 
 /** Aynı anda çalışacak yükleme sayısı — mobil bağlantıyı boğmamak için. */
 export const UPLOAD_CONCURRENCY = 3
@@ -50,7 +58,7 @@ export const ALLOWED_UPLOAD_FORMATS = ['jpg', 'jpeg', 'png', 'webp'] as const
 export const DEFAULT_RETENTION_DAYS = 7
 
 /** Yükleme imzasının geçerlilik süresi. */
-export const SIGNATURE_TTL_SECONDS = 15 * 60 // 15 dakika
+export const SIGNATURE_TTL_SECONDS = 30 * 60 // 30 dakika (Cloudinary imzaları 1 saatte bayatlar)
 
 /** Cloudinary klasör düzeni. Veritabanı yine de tek doğruluk kaynağıdır. */
 export const cloudinaryFolders = {

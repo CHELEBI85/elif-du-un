@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import {
   ALLOWED_UPLOAD_FORMATS,
-  MAX_PHOTOS_PER_BATCH,
+  TICKETS_PER_REQUEST,
   MAX_UPLOAD_FILE_BYTES,
 } from './constants'
 
@@ -22,7 +22,7 @@ export const slugSchema = z
 export const signRequestSchema = z.object({
   slug: slugSchema,
   sessionId: sessionIdSchema,
-  count: z.number().int().min(1).max(MAX_PHOTOS_PER_BATCH),
+  count: z.number().int().min(1).max(TICKETS_PER_REQUEST),
 })
 
 /** POST /api/photos gövdesi — Cloudinary yanıtından türetilir. */

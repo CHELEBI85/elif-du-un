@@ -1,11 +1,17 @@
-export type PhotoStatus = 'ready' | 'uploading' | 'done' | 'error'
+/**
+ * ready     → seçildi, gönderilmeyi bekliyor
+ * queued    → gönderim başladı, sırasını bekliyor
+ * uploading → hazırlanıyor / yükleniyor
+ */
+export type PhotoStatus = 'ready' | 'queued' | 'uploading' | 'done' | 'error'
 
 export interface SelectedPhoto {
   id: string
+  /** Tarayıcının verdiği orijinal dosya; sıkıştırma yükleme anında yapılır. */
   file: File
-  previewUrl: string
+  /** Aynı fotoğrafın iki kez seçilmesini engellemek için anahtar. */
+  key: string
   name: string
-  size: number
   status: PhotoStatus
   progress: number
   error?: string

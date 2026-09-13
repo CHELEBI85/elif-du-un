@@ -30,8 +30,9 @@ export const dynamic = 'force-dynamic'
 export const POST = withErrorHandling('api/cloudinary/sign', async (request: NextRequest) => {
   const ip = clientIp(request.headers)
 
-  // İlk savunma hattı: dakikada en fazla 12 imza isteği.
-  const limit = rateLimit(`sign:${ip}`, 12, 60_000)
+  // İlk savunma hattı. Düğün salonunda misafirlerin çoğu aynı wifi IP'sinden
+  // çıktığı ve her 20 fotoğraf için bir istek yapıldığı için sınır cömert.
+  const limit = rateLimit(`sign:${ip}`, 60, 60_000)
   if (!limit.ok) return rateLimited(limit.retryAfterSeconds)
 
   const body: unknown = await request.json().catch(() => null)

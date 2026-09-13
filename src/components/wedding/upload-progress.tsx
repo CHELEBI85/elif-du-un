@@ -1,6 +1,6 @@
 'use client'
 
-import { AlertCircle, Check } from 'lucide-react'
+import { AlertCircle, Smartphone } from 'lucide-react'
 import { messages } from '@/lib/messages'
 import type { SelectedPhoto } from './types'
 
@@ -8,11 +8,21 @@ interface UploadProgressProps {
   photos: SelectedPhoto[]
 }
 
-/** Dosya başına ilerleme + toplam sayaç. */
+/**
+ * Toplam ilerleme + yalnızca şu an işlenen ve başarısız olan fotoğraflar.
+ *
+ * 300 fotoğrafın hepsini satır satır çizmek hem telefonu yorar hem de
+ * okunmaz; sırada bekleyenler ve bitenler toplam sayaçta görünür.
+ */
 export function UploadProgress({ photos }: UploadProgressProps) {
-  const done = photos.filter((p) => p.status === 'done').length
   const total = photos.length
-  const overall = total === 0 ? 0 : Math.round((done / total) * 100)
+  const done = photos.filter((p) => p.status === 'done').length
+  const active = photos.filter((p) => p.status === 'uploading')
+  const failed = photos.filter((p) => p.status === 'error')
+
+  // Genel çubuk: bitenler + işlenenlerin kısmi ilerlemesi.
+  const partial = active.reduce((sum, p) => sum + p.progress / 100, 0)
+  const overall = total === 0 ? 0 : Math.round(((done + partial) / total) * 100)
 
   return (
     <section aria-label="Yükleme durumu" className="flex flex-col gap-5">
@@ -29,7 +39,7 @@ export function UploadProgress({ photos }: UploadProgressProps) {
           </p>
         </div>
         <div
-          className="h-1 w-full overflow-hidden rounded-full bg-sand"
+          className="h-1.5 w-full overflow-hidden rounded-full bg-sand"
           role="progressbar"
           aria-valuenow={overall}
           aria-valuemin={0}
@@ -43,41 +53,38 @@ export function UploadProgress({ photos }: UploadProgressProps) {
         </div>
       </div>
 
-      <ul className="no-scrollbar flex max-h-72 flex-col gap-3 overflow-y-auto">
-        {photos.map((photo) => (
-          <li key={photo.id} className="flex items-center gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-3">
-                <p className="truncate text-xs text-ink-soft">{photo.name}</p>
-                {photo.status === 'done' ? (
-                  <Check className="size-3.5 shrink-0 text-success" aria-label="Yüklendi" />
-                ) : photo.status === 'error' ? (
-                  <AlertCircle className="size-3.5 shrink-0 text-danger" aria-label="Başarısız" />
-                ) : (
-                  <span className="shrink-0 text-[0.6875rem] tabular-nums text-faint">
-                    {photo.progress}%
-                  </span>
-                )}
-              </div>
-              <div className="mt-1.5 h-[3px] w-full overflow-hidden rounded-full bg-sand">
-                <div
-                  className={
-                    photo.status === 'error'
-                      ? 'h-full rounded-full bg-danger'
-                      : photo.status === 'done'
-                        ? 'h-full rounded-full bg-success'
-                        : 'h-full rounded-full bg-gold transition-[width] duration-300 ease-out'
-                  }
-                  style={{ width: `${photo.status === 'error' ? 100 : photo.progress}%` }}
-                />
-              </div>
-              {photo.status === 'error' && photo.error ? (
-                <p className="mt-1 text-[0.6875rem] leading-snug text-danger">{photo.error}</p>
-              ) : null}
+      {total > 5 ? (
+        <p className="flex items-start gap-2 text-xs leading-relaxed text-muted">
+          <Smartphone className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+          <span>{messages.upload.keepOpen}</span>
+        </p>
+      ) : null}
+
+      <ul className="flex flex-col gap-3">
+        {active.map((photo) => (
+          <li key={photo.id} className="min-w-0">
+            <div className="flex items-center justify-between gap-3">
+              <p className="truncate text-xs text-ink-soft">{photo.name}</p>
+              <span className="shrink-0 text-[0.6875rem] tabular-nums text-muted">
+                {photo.progress === 0 ? 'hazırlanıyor' : `${photo.progress}%`}
+              </span>
+            </div>
+            <div className="mt-1.5 h-[3px] w-full overflow-hidden rounded-full bg-sand">
+              <div
+                className="h-full rounded-full bg-gold transition-[width] duration-300 ease-out"
+                style={{ width: `${photo.progress}%` }}
+              />
             </div>
           </li>
         ))}
       </ul>
+
+      {failed.length > 0 ? (
+        <p className="flex items-center gap-2 text-xs text-danger">
+          <AlertCircle className="size-3.5 shrink-0" aria-hidden="true" />
+          {failed.length} fotoğraf yüklenemedi — bitince tekrar deneyebilirsin.
+        </p>
+      ) : null}
     </section>
   )
 }

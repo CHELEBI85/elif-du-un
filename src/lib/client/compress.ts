@@ -62,6 +62,24 @@ async function convertHeic(file: File): Promise<File | null> {
 }
 
 /**
+ * Seçim anında yapılan anlık, senkron doğrulama.
+ *
+ * Sıkıştırma burada YAPILMAZ: 300 fotoğraf seçildiğinde hepsini baştan
+ * işlemek dakikalar sürer ve hepsinin sıkıştırılmış kopyası bellekte durur.
+ * Bunun yerine her fotoğraf yüklenmeden hemen önce `prepareFile` ile
+ * hazırlanır; tarayıcıdan gelen `File` ise diskteki dosyaya bir işaretçi
+ * olduğu için beklerken belleğe yük bindirmez.
+ *
+ * Geçerliyse null, değilse kullanıcıya gösterilecek nedeni döndürür.
+ */
+export function validateSelection(file: File): string | null {
+  if (file.size === 0) return messages.errors.unsupportedFormat
+  if (file.size > MAX_ORIGINAL_FILE_BYTES) return messages.errors.tooLarge
+  if (!isHeic(file) && !isAccepted(file)) return messages.errors.unsupportedFormat
+  return null
+}
+
+/**
  * Tek bir dosyayı yüklemeye hazırlar:
  *  1. Boyut ve tür doğrulaması
  *  2. Gerekirse HEIC -> JPEG dönüşümü

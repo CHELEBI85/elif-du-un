@@ -25,6 +25,9 @@ export const messages = {
     retryFailed: 'Başarısızları Tekrar Dene',
     selected: (count: number) => `${count} fotoğraf seçildi`,
     progress: (done: number, total: number) => `${done} / ${total} fotoğraf yüklendi`,
+    keepOpen: 'Yükleme bitene kadar bu sayfada kalın ve ekranı kapatmayın.',
+    duplicatesSkipped: (count: number) =>
+      `${count} fotoğraf zaten seçili olduğu için tekrar eklenmedi.`,
     noAccount: 'Kayıt olmanıza gerek yok. Fotoğraflarınızı seçin ve gönderin.',
     retention: 'Fotoğraflar geçici olarak saklanır.',
     privacy: 'Yüklediğiniz fotoğraflar yalnızca etkinlik sahipleri tarafından görüntülenebilir.',

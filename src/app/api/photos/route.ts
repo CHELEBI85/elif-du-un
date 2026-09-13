@@ -20,7 +20,9 @@ export const dynamic = 'force-dynamic'
  */
 export const POST = withErrorHandling('api/photos', async (request: NextRequest) => {
   const ip = clientIp(request.headers)
-  const limit = rateLimit(`photos:${ip}`, 90, 60_000)
+  // Aynı IP'yi paylaşan birçok misafir düşünülerek geniş tutuldu; kesin
+  // koruma tek kullanımlık izinler ve oturum başına fotoğraf sınırıdır.
+  const limit = rateLimit(`photos:${ip}`, 600, 60_000)
   if (!limit.ok) return rateLimited(limit.retryAfterSeconds)
 
   const body: unknown = await request.json().catch(() => null)
