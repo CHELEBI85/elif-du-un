@@ -22,7 +22,7 @@ export default async function GalleryPage({ params }: PageProps) {
 
   const event = await prisma.event.findUnique({
     where: { id },
-    select: { id: true, coupleName: true },
+    select: { id: true, coupleName: true, slug: true },
   })
   if (!event) notFound()
 
@@ -40,7 +40,13 @@ export default async function GalleryPage({ params }: PageProps) {
         )}`}
         backHref={`/admin/events/${id}`}
         backLabel="Etkinlik"
-        actions={<DownloadAllButton eventId={id} photoCount={stats.photoCount} />}
+        actions={
+          <DownloadAllButton
+            eventId={id}
+            photoCount={stats.photoCount}
+            fileName={`${event.slug}-fotograflar.zip`}
+          />
+        }
       />
 
       <PhotoGallery eventId={id} initialPage={initialPage} />

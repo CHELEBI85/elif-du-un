@@ -1,37 +1,37 @@
 import { NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { signedArchiveRequest, type SignedArchiveRequest } from '@/lib/cloudinary'
 import { notFound, withErrorHandling } from '@/lib/api'
 import { log } from '@/lib/logger'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-/**
- * Tek ZIP'e konulacak en fazla fotoğraf.
- * Cloudinary tek arşivde 727 fotoğrafı da kabul ediyor (denendi), ama ~1 GB'lık
- * tek dosya bağlantı bir kez koptuğunda baştan inmek zorunda kalır. 500'lük
- * parçalar hem bu riski azaltır hem de arşiv başına dosya sınırının altında kalır.
- */
-const ARCHIVE_CHUNK_SIZE = 500
-
 interface RouteContext {
   params: Promise<{ id: string }>
 }
 
-interface DownloadArchive extends SignedArchiveRequest {
-  label: string
-  count: number
+/** Windows/macOS'ta dosya adında sorun çıkaran karakterleri temizler. */
+function safeBaseName(original: string | null): string {
+  const base = (original ?? '')
+    .replace(/\.[^.]*$/, '')
+    .replace(/[\\/:*?"<>|\x00-\x1f]/g, '_')
+    .trim()
+    .slice(0, 80)
+  return base.length > 0 ? base : 'foto'
 }
 
 /**
- * Tüm fotoğraflar için imzalı ZIP indirme istekleri üretir.
+ * "Tüm fotoğrafları indir" için dosya listesi.
  *
- * Adres değil POST alanları döndürülür: fotoğraf kimliklerini adrese koymak
- * yüzlerce fotoğrafta "414 Request-URI Too Large" hatasına yol açıyordu.
- * Arşiv Cloudinary tarafında akış olarak üretilip doğrudan tarayıcıya iner;
- * Vercel fonksiyonu hiçbir görüntüyü belleğe almaz.
+ * ZIP artık Cloudinary'de değil, yöneticinin tarayıcısında oluşturuluyor.
+ * Cloudinary'nin anında ürettiği arşivler ücretsiz planda ~100 MB'da
+ * kesiliyor ve kalan fotoğrafları hata vermeden dışarıda bırakıyordu
+ * (727 fotoğraf istendi, ZIP'te 137 çıktı).
+ *
+ * Adlar sıra numarasıyla benzersizleştirilir: iPhone'lar birçok fotoğrafı
+ * aynı adla ("image.jpg", "IMG_1234.jpg") gönderir; aynı adlı dosyalar
+ * ZIP'i açarken birbirinin üzerine yazılırdı.
  */
 export const GET = withErrorHandling(
   'api/events/[id]/download',
@@ -39,44 +39,37 @@ export const GET = withErrorHandling(
     await requireSession()
     const { id } = await context.params
 
-    const event = await prisma.event.findUnique({ where: { id }, select: { slug: true } })
+    const event = await prisma.event.findUnique({ where: { id }, select: { id: true } })
     if (!event) return notFound('Etkinlik bulunamadı.')
 
     const photos = await prisma.photo.findMany({
       where: { eventId: id },
       orderBy: { createdAt: 'asc' },
-      select: { publicId: true },
+      select: {
+        secureUrl: true,
+        originalFilename: true,
+        format: true,
+        fileSize: true,
+        createdAt: true,
+      },
     })
 
-    if (photos.length === 0) {
-      return NextResponse.json({ archives: [], photoCount: 0 })
-    }
+    const width = Math.max(4, String(photos.length).length)
+    const files = photos.map((photo, index) => ({
+      url: photo.secureUrl,
+      name: `${String(index + 1).padStart(width, '0')}_${safeBaseName(photo.originalFilename)}.${photo.format}`,
+      size: photo.fileSize,
+      lastModified: photo.createdAt.toISOString(),
+    }))
 
-    const total = Math.ceil(photos.length / ARCHIVE_CHUNK_SIZE)
-    const archives: DownloadArchive[] = []
+    const totalBytes = photos.reduce((sum, photo) => sum + photo.fileSize, 0)
 
-    for (let i = 0; i < photos.length; i += ARCHIVE_CHUNK_SIZE) {
-      const chunk = photos.slice(i, i + ARCHIVE_CHUNK_SIZE)
-      const part = Math.floor(i / ARCHIVE_CHUNK_SIZE) + 1
-      const first = i + 1
-      const last = i + chunk.length
-
-      archives.push({
-        ...signedArchiveRequest(
-          chunk.map((p) => p.publicId),
-          total > 1 ? `${event.slug}-fotograflar-${part}` : `${event.slug}-fotograflar`,
-        ),
-        count: chunk.length,
-        label: total > 1 ? `Bölüm ${part} / ${total} · ${first}–${last}` : 'Tüm fotoğraflar',
-      })
-    }
-
-    log.info('api/events/[id]/download', 'Arşiv istekleri üretildi', {
+    log.info('api/events/[id]/download', 'İndirme listesi üretildi', {
       eventId: id,
-      photoCount: photos.length,
-      archiveCount: archives.length,
+      photoCount: files.length,
+      totalBytes,
     })
 
-    return NextResponse.json({ archives, photoCount: photos.length })
+    return NextResponse.json({ files, totalBytes })
   },
 )

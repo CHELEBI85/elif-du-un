@@ -141,7 +141,11 @@ export default async function EventDetailPage({ params }: PageProps) {
               geçersiz olur.
             </p>
             <div className="border-t border-line pt-5">
-              <DownloadAllButton eventId={event.id} photoCount={stats.photoCount} />
+              <DownloadAllButton
+                eventId={event.id}
+                photoCount={stats.photoCount}
+                fileName={`${event.slug}-fotograflar.zip`}
+              />
             </div>
           </CardContent>
         </Card>
