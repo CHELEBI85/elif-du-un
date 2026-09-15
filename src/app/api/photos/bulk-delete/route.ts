@@ -7,8 +7,17 @@ import { badRequest, notFound, withErrorHandling } from '@/lib/api'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+// Bir parça (en fazla 100 fotoğraf) tek Cloudinary çağrısıdır ve ~1 sn sürer;
+// yavaş bir anda bile süre sınırına takılmasın diye pay bırakılıyor.
+export const maxDuration = 60
 
-/** Seçili fotoğrafları toplu siler. Yalnızca yönetici. */
+/**
+ * Seçili fotoğrafları siler. Yalnızca yönetici.
+ *
+ * İstemci büyük seçimleri DELETE_BATCH_SIZE'lık parçalar hâlinde gönderir.
+ * Yanıt hangi fotoğrafların silindiğini tek tek döndürür; böylece kısmi
+ * başarıda arayüz yalnızca gerçekten silinenleri kaldırır.
+ */
 export const POST = withErrorHandling('api/photos/bulk-delete', async (request: NextRequest) => {
   await requireSession()
 
@@ -16,25 +25,13 @@ export const POST = withErrorHandling('api/photos/bulk-delete', async (request: 
   const parsed = bulkDeleteSchema.safeParse(body)
   if (!parsed.success) return badRequest()
 
-  const { photoIds } = parsed.data
+  const { eventId, photoIds } = parsed.data
 
-  // Tüm fotoğrafların aynı etkinliğe ait olduğunu doğrula.
-  const photos = await prisma.photo.findMany({
-    where: { id: { in: photoIds } },
-    select: { id: true, eventId: true },
-  })
-  if (photos.length === 0) return notFound('Fotoğraf bulunamadı.')
+  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { id: true } })
+  if (!event) return notFound('Etkinlik bulunamadı.')
 
-  const eventIds = new Set(photos.map((p) => p.eventId))
-  if (eventIds.size !== 1) return badRequest()
-
-  const eventId = photos[0]?.eventId
-  if (!eventId) return badRequest()
-
-  const outcome = await deletePhotos(
-    eventId,
-    photos.map((p) => p.id),
-  )
-
+  // deletePhotos yalnızca bu etkinliğe ait kayıtlara dokunur; başka etkinliğin
+  // kimliği gönderilse bile silinmez.
+  const outcome = await deletePhotos(eventId, [...new Set(photoIds)])
   return NextResponse.json(outcome)
 })

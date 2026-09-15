@@ -9,6 +9,9 @@ import { appUrl } from '@/lib/env'
 
 export const metadata: Metadata = { title: 'Etkinlik Ayarları' }
 export const dynamic = 'force-dynamic'
+// Etkinlik silme (sunucu eylemi) tüm fotoğrafları Cloudinary'den 100'erli çağrılarla
+// siler; binlerce fotoğrafta varsayılan süre yetmeyebilir.
+export const maxDuration = 60
 
 interface PageProps {
   params: Promise<{ id: string }>

@@ -7,42 +7,71 @@ export interface DeleteOutcome {
   requested: number
   deleted: number
   failed: number
+  /** Artık var olmayan fotoğraflar (silinen + zaten silinmiş olanlar). */
+  deletedIds: string[]
+  /** Cloudinary'den silinemediği için veritabanında korunanlar. */
+  failedIds: string[]
 }
 
 /**
  * Fotoğrafları önce Cloudinary'den, sonra veritabanından siler.
  *
  * Sıra bilinçli: Cloudinary silme başarısız olursa veritabanı kaydı korunur,
- * böylece dosya kaybolmaz ve işlem daha sonra tekrar denenebilir. Cloudinary
- * "not_found" derse (zaten silinmiş) bu başarı sayılır — işlem idempotenttir.
+ * böylece dosya kaybolmaz ve işlem daha sonra tekrar denenebilir.
+ *
+ * İdempotent: Cloudinary "not_found" derse ya da kayıt veritabanında hiç
+ * yoksa (çift tıklama, iki sekmeden silme) fotoğraf silinmiş sayılır ve
+ * hata üretilmez.
  */
 export async function deletePhotos(eventId: string, photoIds: string[]): Promise<DeleteOutcome> {
-  if (photoIds.length === 0) return { requested: 0, deleted: 0, failed: 0 }
+  const requested = photoIds.length
+  if (requested === 0) {
+    return { requested: 0, deleted: 0, failed: 0, deletedIds: [], failedIds: [] }
+  }
 
   const photos = await prisma.photo.findMany({
     where: { id: { in: photoIds }, eventId },
     select: { id: true, publicId: true },
   })
 
-  if (photos.length === 0) return { requested: photoIds.length, deleted: 0, failed: 0 }
+  const foundIds = new Set(photos.map((p) => p.id))
+  const alreadyGone = photoIds.filter((id) => !foundIds.has(id))
 
-  const { deleted, missing, failed } = await deleteResources(photos.map((p) => p.publicId))
-  const removable = new Set([...deleted, ...missing])
-
-  const idsToRemove = photos.filter((p) => removable.has(p.publicId)).map((p) => p.id)
-
-  if (idsToRemove.length > 0) {
-    await prisma.photo.deleteMany({ where: { id: { in: idsToRemove }, eventId } })
+  if (photos.length === 0) {
+    return {
+      requested,
+      deleted: alreadyGone.length,
+      failed: 0,
+      deletedIds: alreadyGone,
+      failedIds: [],
+    }
   }
 
-  if (failed.length > 0) {
+  const { deleted, missing } = await deleteResources(photos.map((p) => p.publicId))
+  const removable = new Set([...deleted, ...missing])
+
+  const removedIds = photos.filter((p) => removable.has(p.publicId)).map((p) => p.id)
+  const failedIds = photos.filter((p) => !removable.has(p.publicId)).map((p) => p.id)
+
+  if (removedIds.length > 0) {
+    await prisma.photo.deleteMany({ where: { id: { in: removedIds }, eventId } })
+  }
+
+  if (failedIds.length > 0) {
     log.error('photos', 'Cloudinary silme başarısız, kayıtlar korundu', {
       eventId,
-      failedCount: failed.length,
+      failedCount: failedIds.length,
     })
   }
 
-  return { requested: photoIds.length, deleted: idsToRemove.length, failed: failed.length }
+  const deletedIds = [...removedIds, ...alreadyGone]
+  return {
+    requested,
+    deleted: deletedIds.length,
+    failed: failedIds.length,
+    deletedIds,
+    failedIds,
+  }
 }
 
 export interface GalleryPhoto {
@@ -65,20 +94,52 @@ export interface PhotoPage {
   nextCursor: string | null
 }
 
+/*
+  Sayfalama imleci: son öğenin "tarih_kimlik" değeri.
+
+  Prisma'nın yerleşik imleci kayıt kimliğine bağlıdır; o kayıt silinirse
+  sonraki sayfa boş döner ve galeri bitmiş gibi görünürdü. Değer tabanlı
+  (keyset) imleç, imleç fotoğrafı silinse bile doğru yerden devam eder.
+*/
+function encodeCursor(row: { createdAt: Date; id: string }): string {
+  return `${row.createdAt.toISOString()}_${row.id}`
+}
+
+function decodeCursor(cursor: string | null): { createdAt: Date; id: string } | null {
+  if (!cursor) return null
+  const separator = cursor.indexOf('_')
+  if (separator <= 0) return null
+  const createdAt = new Date(cursor.slice(0, separator))
+  const id = cursor.slice(separator + 1)
+  if (Number.isNaN(createdAt.getTime()) || id.length === 0) return null
+  return { createdAt, id }
+}
+
 /**
- * İmleç tabanlı sayfalama. Binlerce fotoğraf tek seferde asla çekilmez;
- * galeri sonsuz kaydırma ile sayfa sayfa yükler.
+ * Sayfa sayfa fotoğraf listesi. Binlerce fotoğraf tek seferde asla çekilmez;
+ * galeri sonsuz kaydırma ile yükler.
  */
 export async function listPhotos(
   eventId: string,
   cursor: string | null,
   limit: number,
 ): Promise<PhotoPage> {
+  const after = decodeCursor(cursor)
+
   const rows = await prisma.photo.findMany({
-    where: { eventId },
+    where: {
+      eventId,
+      ...(after
+        ? {
+            OR: [
+              { createdAt: { lt: after.createdAt } },
+              { createdAt: after.createdAt, id: { lt: after.id } },
+            ],
+          }
+        : {}),
+    },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: limit + 1,
-    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     select: {
       id: true,
       publicId: true,
@@ -94,6 +155,7 @@ export async function listPhotos(
 
   const hasMore = rows.length > limit
   const page = hasMore ? rows.slice(0, limit) : rows
+  const last = page[page.length - 1]
 
   return {
     items: page.map((row) => ({
@@ -108,6 +170,16 @@ export async function listPhotos(
       originalFilename: row.originalFilename,
       createdAt: row.createdAt.toISOString(),
     })),
-    nextCursor: hasMore ? (page[page.length - 1]?.id ?? null) : null,
+    nextCursor: hasMore && last ? encodeCursor(last) : null,
   }
+}
+
+/** Etkinlikteki tüm fotoğrafların kimlikleri ("Tümünü Seç" için). */
+export async function listPhotoIds(eventId: string): Promise<string[]> {
+  const rows = await prisma.photo.findMany({
+    where: { eventId },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    select: { id: true },
+  })
+  return rows.map((row) => row.id)
 }

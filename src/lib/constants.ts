@@ -20,6 +20,14 @@ export const MAX_ORIGINAL_FILE_BYTES = 15 * 1024 * 1024 // 15 MB
 /** Sıkıştırma sonrası sunucunun kabul edeceği üst sınır (güvenlik payı ile). */
 export const MAX_UPLOAD_FILE_BYTES = 12 * 1024 * 1024 // 12 MB
 
+/**
+ * Tek silme isteğinde işlenecek en fazla fotoğraf.
+ * Yönetici kaç fotoğraf seçerse seçsin istemci bu boyutta parçalar gönderir:
+ * her istek tek Cloudinary çağrısına denk gelir (~0,5 sn) ve sunucu süre
+ * sınırına takılmaz. Tek istekte 500+ kimlik göndermek 400 ile reddediliyordu.
+ */
+export const DELETE_BATCH_SIZE = 100
+
 /** Bir misafir oturumunun tek etkinlikte yükleyebileceği toplam fotoğraf. */
 export const MAX_PHOTOS_PER_SESSION = 1000
 

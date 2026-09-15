@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { deletePhotos } from '@/lib/photos'
-import { notFound, serverError, withErrorHandling } from '@/lib/api'
+import { serverError, withErrorHandling } from '@/lib/api'
 import { log } from '@/lib/logger'
 
 export const runtime = 'nodejs'
@@ -12,7 +12,12 @@ interface RouteContext {
   params: Promise<{ id: string }>
 }
 
-/** Tek bir fotoğrafı siler. Yalnızca yönetici. */
+/**
+ * Tek bir fotoğrafı siler. Yalnızca yönetici.
+ *
+ * Fotoğraf zaten yoksa (çift tıklama, başka sekmeden silinmiş) hata değil
+ * başarı döner: kullanıcının istediği sonuç zaten gerçekleşmiştir.
+ */
 export const DELETE = withErrorHandling(
   'api/photos/[id]',
   async (_request: Request, context: RouteContext) => {
@@ -20,14 +25,16 @@ export const DELETE = withErrorHandling(
     const { id } = await context.params
 
     const photo = await prisma.photo.findUnique({ where: { id }, select: { eventId: true } })
-    if (!photo) return notFound('Fotoğraf bulunamadı.')
+    if (!photo) {
+      return NextResponse.json({ deleted: 1, failed: 0, deletedIds: [id], failedIds: [] })
+    }
 
     const outcome = await deletePhotos(photo.eventId, [id])
-    if (outcome.deleted === 0) {
+    if (outcome.failed > 0) {
       log.error('api/photos/[id]', 'Fotoğraf silinemedi', { photoId: id })
       return serverError()
     }
 
-    return NextResponse.json({ deleted: outcome.deleted })
+    return NextResponse.json(outcome)
   },
 )

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import {
   ALLOWED_UPLOAD_FORMATS,
+  DELETE_BATCH_SIZE,
   TICKETS_PER_REQUEST,
   MAX_UPLOAD_FILE_BYTES,
 } from './constants'
@@ -39,7 +40,8 @@ export const createPhotoSchema = z.object({
 })
 
 export const bulkDeleteSchema = z.object({
-  photoIds: z.array(z.string().min(1).max(64)).min(1).max(500),
+  eventId: z.string().min(1).max(64),
+  photoIds: z.array(z.string().min(1).max(64)).min(1).max(DELETE_BATCH_SIZE),
 })
 
 /** Panel girişinde kullanılan kullanıcı adı. */
