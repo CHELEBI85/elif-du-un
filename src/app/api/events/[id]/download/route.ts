@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { archiveDownloadUrl } from '@/lib/cloudinary'
+import { signedArchiveRequest, type SignedArchiveRequest } from '@/lib/cloudinary'
 import { notFound, withErrorHandling } from '@/lib/api'
 import { log } from '@/lib/logger'
 
@@ -9,22 +9,29 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 /**
- * Cloudinary tek bir arşivde en fazla 1000 kaynak kabul eder; bu yüzden
- * fotoğraflar parçalara bölünür ve her parça için ayrı bir indirme adresi
- * döndürülür.
+ * Tek ZIP'e konulacak en fazla fotoğraf.
+ * Cloudinary tek arşivde 727 fotoğrafı da kabul ediyor (denendi), ama ~1 GB'lık
+ * tek dosya bağlantı bir kez koptuğunda baştan inmek zorunda kalır. 500'lük
+ * parçalar hem bu riski azaltır hem de arşiv başına dosya sınırının altında kalır.
  */
-const ARCHIVE_CHUNK_SIZE = 900
+const ARCHIVE_CHUNK_SIZE = 500
 
 interface RouteContext {
   params: Promise<{ id: string }>
 }
 
+interface DownloadArchive extends SignedArchiveRequest {
+  label: string
+  count: number
+}
+
 /**
- * Tüm fotoğraflar için ZIP indirme adresleri üretir.
+ * Tüm fotoğraflar için imzalı ZIP indirme istekleri üretir.
  *
- * Neden bu yaklaşım: arşiv Cloudinary tarafında oluşturulur ve doğrudan
- * tarayıcıya sunulur. Vercel fonksiyonu hiçbir görüntüyü belleğe almaz,
- * dolayısıyla sunucusuz bellek ve süre limitlerine takılmaz.
+ * Adres değil POST alanları döndürülür: fotoğraf kimliklerini adrese koymak
+ * yüzlerce fotoğrafta "414 Request-URI Too Large" hatasına yol açıyordu.
+ * Arşiv Cloudinary tarafında akış olarak üretilip doğrudan tarayıcıya iner;
+ * Vercel fonksiyonu hiçbir görüntüyü belleğe almaz.
  */
 export const GET = withErrorHandling(
   'api/events/[id]/download',
@@ -45,22 +52,26 @@ export const GET = withErrorHandling(
       return NextResponse.json({ archives: [], photoCount: 0 })
     }
 
-    const archives: Array<{ url: string; count: number; label: string }> = []
+    const total = Math.ceil(photos.length / ARCHIVE_CHUNK_SIZE)
+    const archives: DownloadArchive[] = []
+
     for (let i = 0; i < photos.length; i += ARCHIVE_CHUNK_SIZE) {
       const chunk = photos.slice(i, i + ARCHIVE_CHUNK_SIZE)
       const part = Math.floor(i / ARCHIVE_CHUNK_SIZE) + 1
-      const total = Math.ceil(photos.length / ARCHIVE_CHUNK_SIZE)
+      const first = i + 1
+      const last = i + chunk.length
+
       archives.push({
-        url: archiveDownloadUrl(
+        ...signedArchiveRequest(
           chunk.map((p) => p.publicId),
           total > 1 ? `${event.slug}-fotograflar-${part}` : `${event.slug}-fotograflar`,
         ),
         count: chunk.length,
-        label: total > 1 ? `Bölüm ${part} / ${total}` : 'Tüm fotoğraflar',
+        label: total > 1 ? `Bölüm ${part} / ${total} · ${first}–${last}` : 'Tüm fotoğraflar',
       })
     }
 
-    log.info('api/events/[id]/download', 'Arşiv adresleri üretildi', {
+    log.info('api/events/[id]/download', 'Arşiv istekleri üretildi', {
       eventId: id,
       photoCount: photos.length,
       archiveCount: archives.length,

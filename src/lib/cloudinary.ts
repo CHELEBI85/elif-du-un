@@ -117,27 +117,62 @@ export async function deleteResourceSafe(publicId: string): Promise<boolean> {
   return deleted.length + missing.length > 0
 }
 
+export interface SignedArchiveRequest {
+  /** Cloudinary generate_archive uc noktasi. */
+  endpoint: string
+  /** Form alanlari; diziler `public_ids[]` gibi tekrarlanan alanlar olarak. */
+  fields: Array<[string, string]>
+  /** Imzanin gecersiz olacagi an (unix saniye). */
+  expiresAt: number
+}
+
+/** Imzali arsiv isteginin gecerlilik suresi. Cloudinary imzalari 1 saatte bayatlar. */
+const ARCHIVE_TTL_SECONDS = 50 * 60
+
 /**
- * Verilen public_id listesi icin Cloudinary'nin urettigi ZIP adresini dondurur.
+ * Verilen fotograflar icin imzali, POST ile gonderilecek ZIP indirme istegi uretir.
  *
- * NEDEN BU YONTEM: Arsiv Cloudinary tarafinda olusturulur; Vercel fonksiyonu
- * hicbir zaman goruntuleri bellege almaz. Bu, sunucusuz bellek/sure limitleri
- * icin en guvenli yaklasimdir.
+ * NEDEN URL DEGIL POST: Eski yontem (download_zip_url) her public_id'yi adresin
+ * icine yaziyordu. 727 fotografta adres 74.431 karaktere cikti ve Cloudinary
+ * "414 Request-URI Too Large" dondu. POST govdesinde uzunluk sorunu yok.
  *
- * SINIRLAR (README'de de belirtilmistir):
- *  - Tek arsivde en fazla 1000 kaynak; bu yuzden cagiran taraf parcalar.
- *  - Ucretsiz planda arsiv olusturma islem kotasindan dusulur.
+ * Tarayici bu alanlari gizli bir formla dogrudan Cloudinary'ye gonderir;
+ * arsiv Cloudinary'de akis olarak uretilip dogrudan tarayiciya iner.
+ * Vercel fonksiyonu hicbir goruntuyu bellege almaz ve zaman asimina ugramaz.
  */
-export function archiveDownloadUrl(publicIds: string[], archiveName: string): string {
+export function signedArchiveRequest(publicIds: string[], archiveName: string): SignedArchiveRequest {
   const cld = getCloudinary()
-  return cld.utils.download_zip_url({
+  const expiresAt = Math.floor(Date.now() / 1000) + ARCHIVE_TTL_SECONDS
+  const options = {
     public_ids: publicIds,
     resource_type: 'image',
     target_public_id: archiveName,
     flatten_folders: true,
     use_original_filename: true,
-    expires_at: Math.floor(Date.now() / 1000) + 60 * 30,
-  })
+    expires_at: expiresAt,
+    mode: 'download' as const,
+  }
+
+  // SDK tip tanimi archive_params'i yanlislikla Promise olarak isaretliyor;
+  // calisma zamaninda senkron bir nesne dondurur (dogrulandi).
+  const params = cld.utils.archive_params(options) as unknown as Record<string, unknown>
+  const signed = cld.utils.sign_request(params as never, options) as Record<string, unknown>
+
+  const fields: Array<[string, string]> = []
+  for (const [key, value] of Object.entries(signed)) {
+    if (value === undefined || value === null) continue
+    if (Array.isArray(value)) {
+      for (const item of value) fields.push([`${key}[]`, String(item)])
+    } else {
+      fields.push([key, String(value)])
+    }
+  }
+
+  return {
+    endpoint: `https://api.cloudinary.com/v1_1/${cloudName()}/image/generate_archive`,
+    fields,
+    expiresAt,
+  }
 }
 
 /** IP adresini dogrudan saklamamak icin kisa, tuzlanmis ozet uretir. */
